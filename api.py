@@ -20,16 +20,20 @@ from model.dualstylegan import DualStyleGAN
 from model.encoder.psp import pSp
 from PIL import Image
 
+DEVICE = "cpu"
+# DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 class TestOptions:
-    def __init__(self):
+    def __init__(self, options):
+        self.options = options
 
         self.parser = argparse.ArgumentParser(
             description="Exemplar-Based Style Transfer"
         )
-        self.parser.add_argument(
-            "--content", type=str, default="./i.jpg", help="path of the content image"
-        )
+        # self.parser.add_argument(
+        #     "--content", type=str, default="./i.jpg", help="path of the content image"
+        # )
         self.parser.add_argument(
             "--style", type=str, default="pixar", help="target style type"
         )
@@ -108,9 +112,13 @@ class TestOptions:
                 self.opt.exstyle_name = "exstyle_code.npy"
 
         args = vars(self.opt)
-        print("Load options")
+        print(f"Load options: {self.options}")
         for name, value in sorted(args.items()):
-            print("%s: %s" % (str(name), str(value)))
+            if name in dict(self.options).keys():
+                setattr(self.opt, name, self.options[name])
+
+            print("%s: %s" % (str(name), str(self.opt.name)))
+
         return self.opt
 
 
@@ -194,10 +202,11 @@ def my_run_alignment2(img):
 
 isInited = False
 transform = None
+encoder = None
 
 
 def Init():
-    global isInited
+    global isInited, encoder, DEVICE
     if isInited:
         return
     isInited = True
@@ -209,12 +218,27 @@ def Init():
             transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
         ]
     )
+    # if encoder is None:
+    #     print("Initializing encoder...")
+    #     model_path = os.path.join(CURR_PATH, 'checkpoint', "encoder.pt")
+    #     # ckpt = torch.load(model_path, map_location='cpu')
+    #     ckpt = torch.load(model_path, map_location=DEVICE)
+
+    #     opts = ckpt["opts"]
+    #     opts["checkpoint_path"] = model_path
+    #     opts = Namespace(**opts)
+    #     opts.device = DEVICE
+    #     encoder = pSp(opts)
+    #     encoder.eval()
+    #     encoder = encoder.to(DEVICE)
 
 
-def StyleTransfer(I):
-    global transform
-    device = "cpu"
-    parser = TestOptions()
+def StyleTransfer(I, image_size=1024, options=None):
+    global transform, encoder, DEVICE
+
+    device = DEVICE
+    print("DEVICE: ", device)
+    parser = TestOptions(options)
     args = parser.parse()
 
     print(f"Args: {args}")
@@ -225,16 +249,18 @@ def StyleTransfer(I):
     #     transforms.ToTensor(),
     #     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
     # ])
+    print(f'{datetime.now().strftime("%H_%M_%S")}')
 
-    generator = DualStyleGAN(1024, 512, 8, 2, res_index=6)
+    generator = DualStyleGAN(image_size, 512, 8, 2, res_index=6)
     generator.eval()
 
-    ckpt = torch.load(
-        os.path.join(args.model_path, args.style, args.model_name),
-        map_location=lambda storage, loc: storage,
-    )
+    style_model_path = os.path.join(args.model_path, args.style, args.model_name)
+    print(f"style_model_path: {style_model_path}")
+
+    ckpt = torch.load(style_model_path, map_location="cpu")
     generator.load_state_dict(ckpt["g_ema"])
     generator = generator.to(device)
+    print(f'{datetime.now().strftime("%H_%M_%S")}')
 
     model_path = os.path.join(args.model_path, "encoder.pt")
     ckpt = torch.load(model_path, map_location="cpu")
@@ -244,15 +270,15 @@ def StyleTransfer(I):
     opts.device = device
     encoder = pSp(opts)
     encoder.eval()
-    encoder.to(device)
-
+    encoder = encoder.to(device)
+    print(f'{datetime.now().strftime("%H_%M_%S")}')
     exstyles = np.load(
         os.path.join(args.model_path, args.style, args.exstyle_name),
         allow_pickle="TRUE",
     ).item()
 
     print("Load models successfully!")
-
+    print(f'{datetime.now().strftime("%H_%M_%S")}')
     with torch.no_grad():
         viz = []
         # load content image
@@ -311,7 +337,9 @@ def StyleTransfer(I):
         img_gen = torch.clamp(img_gen.detach(), -1, 1)
         viz += [img_gen]
 
+    torch.cuda.empty_cache()
     print("Generate images successfully!")
+    print(f'{datetime.now().strftime("%H_%M_%S")}')
 
     save_name = (
         args.name
@@ -322,35 +350,47 @@ def StyleTransfer(I):
     #                                 4, 2).cpu(),
     #     os.path.join(args.output_path, save_name + '_overview.jpg'))
 
-    print("Save images successfully!")
+    # print("Save images successfully!")
     return img_gen[0].cpu()
 
 
-def StyleTransfer2(image):
-    device = "cpu"
+def StyleTransfer2(image, options=None, is_save=False):
+    print(f'{datetime.now().strftime("%H_%M_%S")}')
+    print(f"Params: {options} \n\n")
+
     Init()
+    # image_size = 720
 
     if True:
-        I = transform(my_run_alignment2(image)).unsqueeze(dim=0).to(device)
+        I = transform(my_run_alignment2(image)).unsqueeze(dim=0).to(DEVICE)
         I = F.adaptive_avg_pool2d(I, 1024)
     else:
         img = transform(image)
         I = img.unsqueeze(dim=0).to(device)
         # I = load_image("i.jpg").to(device)
+    print(f'Starting.. {datetime.now().strftime("%H_%M_%S")}')
 
-    outputImage = StyleTransfer(I)
+    outputImage = StyleTransfer(I, image_size=1024, options=options)
 
-    now = datetime.now()
-    current_time = now.strftime("%H_%M_%S")
-    image_path = f"{CURR_PATH}/output/out_{current_time}.jpg"
-    # image_path = join(CURR_PATH, 'out.jpg');
+    if is_save:
+        now = datetime.now()
+        current_time = now.strftime("%Y_%m_%d__%H_%M_%S")
+        image_path = f"{CURR_PATH}/output/out_{current_time}.jpg"
+        # image_path = join(CURR_PATH, 'out.jpg');
+        save_image(outputImage, image_path)
+        print(f"Saved at {image_path}")
 
-    save_image(outputImage, image_path)
+    print(f'Finished {datetime.now().strftime("%H_%M_%S")}')
+
     return outputImage
 
 
 if __name__ == "__main__":
+    # torch.cuda.empty_cache()
+    print(f'{datetime.now().strftime("%H_%M_%S")}')
+
     img = Image.open("i.jpg")
     print("****")
     # load_image("i.jpg")
-    StyleTransfer2(img)
+    StyleTransfer2(img, None, True)
+    # print(f'{datetime.now().strftime("%H_%M_%S")}')
