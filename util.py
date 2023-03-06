@@ -10,27 +10,39 @@ from torch import autograd
 from model.stylegan.op import conv2d_gradfix
 import random
 import math
-    
+
+
 def visualize(img_arr):
-    plt.imshow(((img_arr.detach().numpy().transpose(1, 2, 0) + 1.0) * 127.5).astype(np.uint8))
-    plt.axis('off')
-    
+    plt.imshow(
+        ((img_arr.detach().numpy().transpose(1, 2, 0) + 1.0) * 127.5).astype(np.uint8)
+    )
+    plt.axis("off")
+
+
 def convert_tensor2img(tensor):
-    return cv2.cvtColor(((tensor.detach().numpy().transpose(1, 2, 0) + 1.0) * 127.5).astype(np.uint8), cv2.COLOR_RGB2BGR)
+    return cv2.cvtColor(
+        ((tensor.detach().numpy().transpose(1, 2, 0) + 1.0) * 127.5).astype(np.uint8),
+        cv2.COLOR_RGB2BGR,
+    )
+
 
 def save_image(img, filename):
     tmp = ((img.detach().numpy().transpose(1, 2, 0) + 1.0) * 127.5).astype(np.uint8)
     cv2.imwrite(filename, cv2.cvtColor(tmp, cv2.COLOR_RGB2BGR))
-    
+
+
 def load_image(filename):
-    transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5],std=[0.5,0.5,0.5]),
-    ])
-    
+    transform = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        ]
+    )
+
     img = Image.open(filename)
     img = transform(img)
-    return img.unsqueeze(dim=0)   
+    return img.unsqueeze(dim=0)
+
 
 def data_sampler(dataset, shuffle, distributed):
     if distributed:
@@ -71,7 +83,7 @@ def d_logistic_loss(real_pred, fake_pred):
 
 def d_r1_loss(real_pred, real_img):
     with conv2d_gradfix.no_weight_gradients():
-        grad_real, = autograd.grad(
+        (grad_real,) = autograd.grad(
             outputs=real_pred.sum(), inputs=real_img, create_graph=True
         )
     grad_penalty = grad_real.pow(2).reshape(grad_real.shape[0], -1).sum(1).mean()
@@ -89,7 +101,7 @@ def g_path_regularize(fake_img, latents, mean_path_length, decay=0.01):
     noise = torch.randn_like(fake_img) / math.sqrt(
         fake_img.shape[2] * fake_img.shape[3]
     )
-    grad, = autograd.grad(
+    (grad,) = autograd.grad(
         outputs=(fake_img * noise).sum(), inputs=latents, create_graph=True
     )
     path_lengths = torch.sqrt(grad.pow(2).sum(2).mean(1))

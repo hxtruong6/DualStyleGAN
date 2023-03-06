@@ -115,7 +115,7 @@ class TestOptions:
                 self.opt.exstyle_name = "exstyle_code.npy"
 
         args = vars(self.opt)
-        print(f"Load options: {self.options}")
+        # print(f"Load options: {self.options}")
         for name, value in sorted(args.items()):
             if name in dict(self.options).keys():
                 setattr(self.opt, name, self.options[name])
@@ -240,11 +240,11 @@ def StyleTransfer(I, image_size=1024, options=None):
     global transform, encoder, DEVICE
 
     device = DEVICE
-    print("DEVICE: ", device)
+    # print("DEVICE: ", device)
     parser = TestOptions(options)
     args = parser.parse()
 
-    print(f"Args: {args}")
+    # print(f"Args: {args}")
     print("*" * 98)
 
     # transform = transforms.Compose([
@@ -265,16 +265,21 @@ def StyleTransfer(I, image_size=1024, options=None):
     generator = generator.to(device)
     print(f'{datetime.now().strftime("%H_%M_%S")}')
 
-    model_path = os.path.join(args.model_path, "encoder.pt")
-    ckpt = torch.load(model_path, map_location="cpu")
-    opts = ckpt["opts"]
-    opts["checkpoint_path"] = model_path
-    opts = Namespace(**opts)
-    opts.device = device
-    encoder = pSp(opts)
-    encoder.eval()
-    encoder = encoder.to(device)
-    print(f'{datetime.now().strftime("%H_%M_%S")}')
+    encoder = None
+    if "encoder" in options and options["encoder"] is not None:
+        encoder = options["encoder"]
+    else:
+        model_path = os.path.join(args.model_path, "encoder.pt")
+        ckpt = torch.load(model_path, map_location="cpu")
+        opts = ckpt["opts"]
+        opts["checkpoint_path"] = model_path
+        opts = Namespace(**opts)
+        opts.device = device
+        encoder = pSp(opts)
+        encoder.eval()
+        encoder = encoder.to(device)
+
+    print(f'encoder: {datetime.now().strftime("%H_%M_%S")}')
     exstyles = np.load(
         os.path.join(args.model_path, args.style, args.exstyle_name),
         allow_pickle="TRUE",
@@ -340,7 +345,7 @@ def StyleTransfer(I, image_size=1024, options=None):
         img_gen = torch.clamp(img_gen.detach(), -1, 1)
         viz += [img_gen]
 
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
     print("Generate images successfully!")
     print(f'{datetime.now().strftime("%H_%M_%S")}')
 
@@ -357,9 +362,9 @@ def StyleTransfer(I, image_size=1024, options=None):
     return img_gen[0].cpu()
 
 
-def StyleTransfer2(image, options=None, is_save=False):
+def StyleTransferService(image, options=None, is_save=False):
     print(f'{datetime.now().strftime("%H_%M_%S")}')
-    print(f"Params: {options} \n\n")
+    # print(f"Params: {options} \n\n")
 
     Init()
     # image_size = 720
@@ -395,5 +400,5 @@ if __name__ == "__main__":
     img = Image.open("i.jpg")
     print("****")
     # load_image("i.jpg")
-    StyleTransfer2(img, None, True)
+    StyleTransferService(img, None, True)
     # print(f'{datetime.now().strftime("%H_%M_%S")}')
