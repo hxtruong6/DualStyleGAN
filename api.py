@@ -6,9 +6,8 @@ import torch
 from datetime import datetime
 
 
-print("basename:    ", os.path.basename(__file__))
 CURR_PATH = os.path.dirname(__file__)
-print("dirname:     ", CURR_PATH)
+print("[StyleTransferService] Dirname:", CURR_PATH)
 sys.path.append(CURR_PATH)
 
 from util import save_image, load_image
@@ -24,7 +23,8 @@ DEVICE = "cpu"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # if torch.backends.mps.is_available() and torch.backends.mps.is_built():
 #     DEVICE = torch.device("mps")
-print(f"Device for running: {DEVICE}")
+# print(f"Device for running: {DEVICE}")
+print(50*"-")
 
 
 class TestOptions:
