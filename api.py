@@ -381,9 +381,15 @@ def StyleTransferService(image, options=None, is_save=False):
     outputImage = StyleTransfer(I, image_size=1024, options=options)
 
     if is_save:
+        '''
+        This is used to check whether image processed or not!
+        output_path = f"{CARTOONIZE_RESOURCE}/output/{params.request_id}_{params.style}_{params.style_id}.jpg"
+
+        '''
         now = datetime.now()
         current_time = now.strftime("%Y_%m_%d__%H_%M_%S")
-        image_path = f"{CURR_PATH}/output/out_{current_time}.jpg"
+        # image_path = f"{CURR_PATH}/output/out_{current_time}.jpg"
+        image_path = options['output_path']
         # image_path = join(CURR_PATH, 'out.jpg');
         save_image(outputImage, image_path)
         print(f"Saved at {image_path}")
