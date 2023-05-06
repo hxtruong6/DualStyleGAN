@@ -11,7 +11,19 @@ from torch.utils import data
 import torch.distributed as dist
 from torchvision import transforms, utils
 from tqdm import tqdm
-from util import data_sampler, requires_grad, accumulate, sample_data, d_logistic_loss, d_r1_loss, g_nonsaturating_loss, g_path_regularize, make_noise, mixing_noise, set_grad_none
+from util import (
+    data_sampler,
+    requires_grad,
+    accumulate,
+    sample_data,
+    d_logistic_loss,
+    d_r1_loss,
+    g_nonsaturating_loss,
+    g_path_regularize,
+    make_noise,
+    mixing_noise,
+    set_grad_none,
+)
 
 try:
     import wandb
@@ -31,43 +43,136 @@ from model.stylegan.distributed import (
 from model.stylegan.non_leaking import augment, AdaptiveAugment
 from model.stylegan.model import Generator, Discriminator
 
-class TrainOptions():
+
+class TrainOptions:
     def __init__(self):
 
         self.parser = argparse.ArgumentParser(description="Train StyleGAN")
         self.parser.add_argument("path", type=str, help="path to the lmdb dataset")
-        self.parser.add_argument("--iter", type=int, default=800000, help="total training iterations")
-        self.parser.add_argument("--batch", type=int, default=16, help="batch sizes for each gpus")
-        self.parser.add_argument("--n_sample", type=int, default=9, help="number of the samples generated during training")
-        self.parser.add_argument("--size", type=int, default=1024, help="image sizes for the model")
-        self.parser.add_argument("--r1", type=float, default=10, help="weight of the r1 regularization")
-        self.parser.add_argument("--path_regularize", type=float, default=2, help="weight of the path length regularization")
-        self.parser.add_argument("--path_batch_shrink", type=int, default=2, help="batch size reducing factor for the path length regularization (reduce memory consumption)")
-        self.parser.add_argument("--d_reg_every", type=int, default=16, help="interval of the applying r1 regularization")
-        self.parser.add_argument("--g_reg_every", type=int, default=4, help="interval of the applying path length regularization")
-        self.parser.add_argument("--mixing", type=float, default=0.9, help="probability of latent code mixing")
-        self.parser.add_argument("--ckpt", type=str, default=None, help="path to the checkpoints to resume training")
-        self.parser.add_argument("--lr", type=float, default=0.002, help="learning rate")
-        self.parser.add_argument("--channel_multiplier", type=int, default=2, help="channel multiplier factor for the model. config-f = 2, else = 1")
-        self.parser.add_argument("--wandb", action="store_true", help="use weights and biases logging")
-        self.parser.add_argument("--local_rank", type=int, default=0, help="local rank for distributed training")
-        self.parser.add_argument("--augment", action="store_true", help="apply non leaking augmentation")
-        self.parser.add_argument("--augment_p", type=float, default=0, help="probability of applying augmentation. 0 = use adaptive augmentation")
-        self.parser.add_argument("--ada_target", type=float, default=0.6, help="target augmentation probability for adaptive augmentation")
-        self.parser.add_argument("--ada_length", type=int, default=500 * 1000, help="target duraing to reach augmentation probability for adaptive augmentation")
-        self.parser.add_argument("--ada_every", type=int, default=256, help="probability update interval of the adaptive augmentation")
-        self.parser.add_argument("--save_every", type=int, default=10000, help="interval of saving a checkpoint")
-        self.parser.add_argument("--style", type=str, default='cartoon', help="style type")
-        self.parser.add_argument("--model_path", type=str, default='./checkpoint/', help="path to save the model")
+        self.parser.add_argument(
+            "--iter", type=int, default=800000, help="total training iterations"
+        )
+        self.parser.add_argument(
+            "--batch", type=int, default=16, help="batch sizes for each gpus"
+        )
+        self.parser.add_argument(
+            "--n_sample",
+            type=int,
+            default=9,
+            help="number of the samples generated during training",
+        )
+        self.parser.add_argument(
+            "--size", type=int, default=1024, help="image sizes for the model"
+        )
+        self.parser.add_argument(
+            "--r1", type=float, default=10, help="weight of the r1 regularization"
+        )
+        self.parser.add_argument(
+            "--path_regularize",
+            type=float,
+            default=2,
+            help="weight of the path length regularization",
+        )
+        self.parser.add_argument(
+            "--path_batch_shrink",
+            type=int,
+            default=2,
+            help="batch size reducing factor for the path length regularization (reduce memory consumption)",
+        )
+        self.parser.add_argument(
+            "--d_reg_every",
+            type=int,
+            default=16,
+            help="interval of the applying r1 regularization",
+        )
+        self.parser.add_argument(
+            "--g_reg_every",
+            type=int,
+            default=4,
+            help="interval of the applying path length regularization",
+        )
+        self.parser.add_argument(
+            "--mixing",
+            type=float,
+            default=0.9,
+            help="probability of latent code mixing",
+        )
+        self.parser.add_argument(
+            "--ckpt",
+            type=str,
+            default=None,
+            help="path to the checkpoints to resume training",
+        )
+        self.parser.add_argument(
+            "--lr", type=float, default=0.002, help="learning rate"
+        )
+        self.parser.add_argument(
+            "--channel_multiplier",
+            type=int,
+            default=2,
+            help="channel multiplier factor for the model. config-f = 2, else = 1",
+        )
+        self.parser.add_argument(
+            "--wandb", action="store_true", help="use weights and biases logging"
+        )
+        self.parser.add_argument(
+            "--local_rank",
+            type=int,
+            default=0,
+            help="local rank for distributed training",
+        )
+        self.parser.add_argument(
+            "--augment", action="store_true", help="apply non leaking augmentation"
+        )
+        self.parser.add_argument(
+            "--augment_p",
+            type=float,
+            default=0,
+            help="probability of applying augmentation. 0 = use adaptive augmentation",
+        )
+        self.parser.add_argument(
+            "--ada_target",
+            type=float,
+            default=0.6,
+            help="target augmentation probability for adaptive augmentation",
+        )
+        self.parser.add_argument(
+            "--ada_length",
+            type=int,
+            default=500 * 1000,
+            help="target duraing to reach augmentation probability for adaptive augmentation",
+        )
+        self.parser.add_argument(
+            "--ada_every",
+            type=int,
+            default=256,
+            help="probability update interval of the adaptive augmentation",
+        )
+        self.parser.add_argument(
+            "--save_every",
+            type=int,
+            default=10000,
+            help="interval of saving a checkpoint",
+        )
+        self.parser.add_argument(
+            "--style", type=str, default="cartoon", help="style type"
+        )
+        self.parser.add_argument(
+            "--model_path",
+            type=str,
+            default="./checkpoint/",
+            help="path to save the model",
+        )
 
     def parse(self):
-        self.opt = self.parser.parse_args()     
+        self.opt = self.parser.parse_args()
         args = vars(self.opt)
         if self.opt.local_rank == 0:
-            print('Load options')
+            print("Load options")
             for name, value in sorted(args.items()):
-                print('%s: %s' % (str(name), str(value)))
+                print("%s: %s" % (str(name), str(value)))
         return self.opt
+
 
 def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device):
     loader = sample_data(loader)
@@ -75,7 +180,13 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
     pbar = range(args.iter)
 
     if get_rank() == 0:
-        pbar = tqdm(pbar, initial=args.start_iter, ncols=140, dynamic_ncols=False, smoothing=0.01)
+        pbar = tqdm(
+            pbar,
+            initial=args.start_iter,
+            ncols=140,
+            dynamic_ncols=False,
+            smoothing=0.01,
+        )
 
     mean_path_length = 0
 
@@ -248,46 +359,47 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                     }
                 )
 
-            if i % 100 == 0 or (i+1) == args.iter:
+            if i % 100 == 0 or (i + 1) == args.iter:
                 with torch.no_grad():
                     g_ema.eval()
                     sample, _ = g_ema([sample_z])
-                    sample = F.interpolate(sample,256)
+                    sample = F.interpolate(sample, 256)
                     utils.save_image(
                         sample,
-                        f"log/%s/finetune-%06d.jpg"%(args.style, i),
-                        nrow=int(args.n_sample ** 0.5),
+                        f"log/%s/finetune-%06d.jpg" % (args.style, i),
+                        nrow=int(args.n_sample**0.5),
                         normalize=True,
                         range=(-1, 1),
                     )
 
-            if (i+1) % args.save_every == 0 or (i+1) == args.iter:
+            if (i + 1) % args.save_every == 0 or (i + 1) == args.iter:
                 torch.save(
                     {
-                        #"g": g_module.state_dict(),
-                        #"d": d_module.state_dict(),
+                        # "g": g_module.state_dict(),
+                        # "d": d_module.state_dict(),
                         "g_ema": g_ema.state_dict(),
-                        #"g_optim": g_optim.state_dict(),
-                        #"d_optim": d_optim.state_dict(),
-                        #"args": args,
-                        #"ada_aug_p": ada_aug_p,
+                        # "g_optim": g_optim.state_dict(),
+                        # "d_optim": d_optim.state_dict(),
+                        # "args": args,
+                        # "ada_aug_p": ada_aug_p,
                     },
-                    f"%s/%s/finetune-%06d.pt"%(args.model_path, args.style, i+1),
+                    f"%s/%s/finetune-%06d.pt" % (args.model_path, args.style, i + 1),
                 )
-            
+
+
 if __name__ == "__main__":
     device = "cuda"
 
     parser = TrainOptions()
     args = parser.parse()
     if args.local_rank == 0:
-        print('*'*98)
+        print("*" * 98)
 
-    if not os.path.exists("log/%s/"%(args.style)):
-        os.makedirs("log/%s/"%(args.style))
-    if not os.path.exists("%s/%s/"%(args.model_path, args.style)):
-        os.makedirs("%s/%s/"%(args.model_path, args.style))    
-    
+    if not os.path.exists("log/%s/" % (args.style)):
+        os.makedirs("log/%s/" % (args.style))
+    if not os.path.exists("%s/%s/" % (args.model_path, args.style)):
+        os.makedirs("%s/%s/" % (args.model_path, args.style))
+
     n_gpu = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
     args.distributed = n_gpu > 1
 
@@ -301,11 +413,11 @@ if __name__ == "__main__":
 
     args.start_iter = 0
 
-    #if args.arch == 'stylegan2':
-        #from model.stylegan.model import Generator, Discriminator
+    # if args.arch == 'stylegan2':
+    # from model.stylegan.model import Generator, Discriminator
 
-    #elif args.arch == 'swagan':
-        #from swagan import Generator, Discriminator
+    # elif args.arch == 'swagan':
+    # from swagan import Generator, Discriminator
 
     generator = Generator(
         args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
@@ -325,12 +437,12 @@ if __name__ == "__main__":
     g_optim = optim.Adam(
         generator.parameters(),
         lr=args.lr * g_reg_ratio,
-        betas=(0 ** g_reg_ratio, 0.99 ** g_reg_ratio),
+        betas=(0**g_reg_ratio, 0.99**g_reg_ratio),
     )
     d_optim = optim.Adam(
         discriminator.parameters(),
         lr=args.lr * d_reg_ratio,
-        betas=(0 ** d_reg_ratio, 0.99 ** d_reg_ratio),
+        betas=(0**d_reg_ratio, 0.99**d_reg_ratio),
     )
 
     if args.ckpt is not None:
@@ -348,7 +460,7 @@ if __name__ == "__main__":
         generator.load_state_dict(ckpt["g"])
         discriminator.load_state_dict(ckpt["d"])
         g_ema.load_state_dict(ckpt["g_ema"])
-        
+
         if "g_optim" in ckpt:
             g_optim.load_state_dict(ckpt["g_optim"])
         if "d_optim" in ckpt:
