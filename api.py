@@ -122,7 +122,7 @@ class TestOptions:
             if name in dict(self.options).keys():
                 setattr(self.opt, name, self.options[name])
 
-            print("%s: %s" % (str(name), str(self.opt.name)))
+            # print("%s: %s" % (str(name), str(self.opt.name)))
 
         return self.opt
 
