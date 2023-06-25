@@ -201,9 +201,9 @@ def sample_affine(p, size, height, width, device="cpu"):
     # print('flip', G, scale_mat(1 - 2.0 * param, torch.ones(size)), sep='\n')
 
     # 90 rotate
-    #param = category_sample(size, (0, 3))
-    #Gc = rotate_mat(-math.pi / 2 * param, device=device)
-    #G = random_mat_apply(p, Gc, G, eye, device=device)
+    # param = category_sample(size, (0, 3))
+    # Gc = rotate_mat(-math.pi / 2 * param, device=device)
+    # G = random_mat_apply(p, Gc, G, eye, device=device)
     # print('90 rotate', G, rotate_mat(-math.pi / 2 * param), sep='\n')
 
     # integer translate
@@ -365,7 +365,7 @@ class GridSampleBackward(autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_grad_input, grad_grad_grid):
-        grid, = ctx.saved_tensors
+        (grid,) = ctx.saved_tensors
         grad_grad_output = None
 
         if ctx.needs_input_grad[0]:
@@ -463,7 +463,7 @@ def augment(img, p, transform_matrix=(None, None)):
     if img.shape[1] == 3:
         img, C = random_apply_color(img, p, transform_matrix[1])
     else:
-        tmp, C = random_apply_color(img[:,0:3], p, transform_matrix[1])
-        img = torch.cat((tmp, img[:,3:]), dim=1)
+        tmp, C = random_apply_color(img[:, 0:3], p, transform_matrix[1])
+        img = torch.cat((tmp, img[:, 3:]), dim=1)
 
     return img, (G, C)

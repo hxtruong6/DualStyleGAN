@@ -3,13 +3,12 @@ import torch.nn.functional as F
 
 from model.contextual_loss.config import LOSS_TYPES
 
-__all__ = ['contextual_loss', 'contextual_bilateral_loss']
+__all__ = ["contextual_loss", "contextual_bilateral_loss"]
 
 
-def contextual_loss(x: torch.Tensor,
-                    y: torch.Tensor,
-                    band_width: float = 0.5,
-                    loss_type: str = 'cosine'):
+def contextual_loss(
+    x: torch.Tensor, y: torch.Tensor, band_width: float = 0.5, loss_type: str = "cosine"
+):
     """
     Computes contextual loss between x and y.
     The most of this code is copied from
@@ -34,16 +33,16 @@ def contextual_loss(x: torch.Tensor,
         contextual loss between x and y (Eq (1) in the paper)
     """
 
-    assert x.size() == y.size(), 'input tensor must have the same size.'
-    assert loss_type in LOSS_TYPES, f'select a loss type from {LOSS_TYPES}.'
+    assert x.size() == y.size(), "input tensor must have the same size."
+    assert loss_type in LOSS_TYPES, f"select a loss type from {LOSS_TYPES}."
 
     N, C, H, W = x.size()
 
-    if loss_type == 'cosine':
+    if loss_type == "cosine":
         dist_raw = compute_cosine_distance(x, y)
-    elif loss_type == 'l1':
+    elif loss_type == "l1":
         dist_raw = compute_l1_distance(x, y)
-    elif loss_type == 'l2':
+    elif loss_type == "l2":
         dist_raw = compute_l2_distance(x, y)
 
     dist_tilde = compute_relative_distance(dist_raw)
@@ -55,11 +54,13 @@ def contextual_loss(x: torch.Tensor,
 
 
 # TODO: Operation check
-def contextual_bilateral_loss(x: torch.Tensor,
-                              y: torch.Tensor,
-                              weight_sp: float = 0.1,
-                              band_width: float = 1.,
-                              loss_type: str = 'cosine'):
+def contextual_bilateral_loss(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    weight_sp: float = 0.1,
+    band_width: float = 1.0,
+    loss_type: str = "cosine",
+):
     """
     Computes Contextual Bilateral (CoBi) Loss between x and y,
         proposed in https://arxiv.org/pdf/1905.05169.pdf.
@@ -85,8 +86,8 @@ def contextual_bilateral_loss(x: torch.Tensor,
         indices to maximize similarity over channels.
     """
 
-    assert x.size() == y.size(), 'input tensor must have the same size.'
-    assert loss_type in LOSS_TYPES, f'select a loss type from {LOSS_TYPES}.'
+    assert x.size() == y.size(), "input tensor must have the same size."
+    assert loss_type in LOSS_TYPES, f"select a loss type from {LOSS_TYPES}."
 
     # spatial loss
     grid = compute_meshgrid(x.shape).to(x.device)
@@ -95,17 +96,17 @@ def contextual_bilateral_loss(x: torch.Tensor,
     cx_sp = compute_cx(dist_tilde, band_width)
 
     # feature loss
-    if loss_type == 'cosine':
+    if loss_type == "cosine":
         dist_raw = compute_cosine_distance(x, y)
-    elif loss_type == 'l1':
+    elif loss_type == "l1":
         dist_raw = compute_l1_distance(x, y)
-    elif loss_type == 'l2':
+    elif loss_type == "l2":
         dist_raw = compute_l2_distance(x, y)
     dist_tilde = compute_relative_distance(dist_raw)
     cx_feat = compute_cx(dist_tilde, band_width)
 
     # combined loss
-    cx_combine = (1. - weight_sp) * cx_feat + weight_sp * cx_sp
+    cx_combine = (1.0 - weight_sp) * cx_feat + weight_sp * cx_sp
 
     k_max_NC, _ = torch.max(cx_combine, dim=2, keepdim=True)
 
@@ -143,8 +144,7 @@ def compute_cosine_distance(x, y):
     y_normalized = y_normalized.reshape(N, C, -1)  # (N, C, H*W)
 
     # consine similarity
-    cosine_sim = torch.bmm(x_normalized.transpose(1, 2),
-                           y_normalized)  # (N, H*W, H*W)
+    cosine_sim = torch.bmm(x_normalized.transpose(1, 2), y_normalized)  # (N, H*W, H*W)
 
     # convert to distance
     dist = 1 - cosine_sim
@@ -160,8 +160,8 @@ def compute_l1_distance(x: torch.Tensor, y: torch.Tensor):
 
     dist = x_vec.unsqueeze(2) - y_vec.unsqueeze(3)
     dist = dist.sum(dim=1).abs()
-    dist = dist.transpose(1, 2).reshape(N, H*W, H*W)
-    dist = dist.clamp(min=0.)
+    dist = dist.transpose(1, 2).reshape(N, H * W, H * W)
+    dist = dist.clamp(min=0.0)
 
     return dist
 
@@ -171,13 +171,13 @@ def compute_l2_distance(x, y):
     N, C, H, W = x.size()
     x_vec = x.view(N, C, -1)
     y_vec = y.view(N, C, -1)
-    x_s = torch.sum(x_vec ** 2, dim=1)
-    y_s = torch.sum(y_vec ** 2, dim=1)
+    x_s = torch.sum(x_vec**2, dim=1)
+    y_s = torch.sum(y_vec**2, dim=1)
 
     A = y_vec.transpose(1, 2) @ x_vec
     dist = y_s - 2 * A + x_s.transpose(0, 1)
-    dist = dist.transpose(1, 2).reshape(N, H*W, H*W)
-    dist = dist.clamp(min=0.)
+    dist = dist.transpose(1, 2).reshape(N, H * W, H * W)
+    dist = dist.clamp(min=0.0)
 
     return dist
 

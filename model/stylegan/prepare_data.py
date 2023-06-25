@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     if not os.path.exists(args.out):
         os.makedirs(args.out)
-     
+
     resample_map = {"lanczos": Image.LANCZOS, "bilinear": Image.BILINEAR}
     resample = resample_map[args.resample]
 
@@ -101,5 +101,5 @@ if __name__ == "__main__":
 
     imgset = datasets.ImageFolder(args.path)
 
-    with lmdb.open(args.out, map_size=1024 ** 4, readahead=False) as env:
+    with lmdb.open(args.out, map_size=1024**4, readahead=False) as env:
         prepare(env, imgset, args.n_worker, sizes=sizes, resample=resample)

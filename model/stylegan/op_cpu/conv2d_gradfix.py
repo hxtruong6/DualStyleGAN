@@ -17,8 +17,8 @@ def no_weight_gradients():
     weight_gradients_disabled = True
     yield
     weight_gradients_disabled = old
-    
-    
+
+
 def conv2d(input, weight, bias=None, stride=1, padding=0, dilation=1, groups=1):
     if could_use_op(input):
         return conv2d_gradfix(
@@ -43,14 +43,14 @@ def conv2d(input, weight, bias=None, stride=1, padding=0, dilation=1, groups=1):
 
 
 def conv_transpose2d(
-        input,
-        weight,
-        bias=None,
-        stride=1,
-        padding=0,
-        output_padding=0,
-        groups=1,
-        dilation=1,
+    input,
+    weight,
+    bias=None,
+    stride=1,
+    padding=0,
+    output_padding=0,
+    groups=1,
+    dilation=1,
 ):
     if could_use_op(input):
         return conv2d_gradfix(
@@ -102,7 +102,7 @@ conv2d_gradfix_cache = dict()
 
 
 def conv2d_gradfix(
-        transpose, weight_shape, stride, padding, output_padding, dilation, groups
+    transpose, weight_shape, stride, padding, output_padding, dilation, groups
 ):
     ndim = 2
     weight_shape = tuple(weight_shape)

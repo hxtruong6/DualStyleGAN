@@ -40,9 +40,8 @@ class VGG19(nn.Module):
         h_relu5_4 = h
 
         vgg_outputs = namedtuple(
-            "VggOutputs", ['relu1_2', 'relu2_2',
-                           'relu3_4', 'relu4_4', 'relu5_4'])
-        out = vgg_outputs(h_relu1_2, h_relu2_2,
-                          h_relu3_4, h_relu4_4, h_relu5_4)
+            "VggOutputs", ["relu1_2", "relu2_2", "relu3_4", "relu4_4", "relu5_4"]
+        )
+        out = vgg_outputs(h_relu1_2, h_relu2_2, h_relu3_4, h_relu4_4, h_relu5_4)
 
         return out
