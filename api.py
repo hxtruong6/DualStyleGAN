@@ -165,6 +165,7 @@ def load_encoder(encoder_path):
     encoder.eval()
     encoder = encoder.to(DEVICE)
     print(f"[Cartoonize] Loaded model to GPU!")
+    return encoder
 
 
 def Init():
@@ -226,6 +227,7 @@ def StyleTransfer(I, image_size=1024, options=None):
 
     encoder = None
     if "encoder" in options and options["encoder"] is not None:
+        logger.info("Load encoder from options")
         encoder = options["encoder"]
     else:
         model_path = os.path.join(args.model_path, "encoder.pt")
@@ -337,47 +339,50 @@ def process_cropped_face(image_path, cropped_image_path):
 
 
 def StyleTransferService(image, options=None, is_save=False):
-    logger.info(f"StyleTransferService start...")
-    # print(f"Params: {options} \n\n")
+    try:
+        logger.info(f"StyleTransferService start...")
+        # print(f"Params: {options} \n\n")
+        Init()
+        # image_size = 720
 
-    Init()
-    # image_size = 720
-
-    if type(image) != str:
-        # type of image is tensor image or object
-        I = transform(my_run_alignment2(image)).unsqueeze(dim=0).to(DEVICE)
-        I = F.adaptive_avg_pool2d(I, 1024)
-    else:
-        # type of image is string
-        I = (
-            transform(
-                run_alignment(
-                    {"content": image, "model_path": join(CURR_PATH, "checkpoint")}
-                )
+        if type(image) != str:
+            # type of image is tensor image or object
+            I_ = my_run_alignment2(image)
+            I = transform(I_).unsqueeze(dim=0).to(DEVICE)
+            I = F.adaptive_avg_pool2d(I, 1024)
+        else:
+            # type of image is string
+            I_ = run_alignment(
+                {"content": image, "model_path": join(CURR_PATH, "checkpoint")}
             )
-            .unsqueeze(dim=0)
-            .to(DEVICE)
-        )
-        I = F.adaptive_avg_pool2d(I, 1024)
+            I = transform(I_).unsqueeze(dim=0).to(DEVICE)
+            I = F.adaptive_avg_pool2d(I, 1024)
 
-    logger.info(f"Starting cartoonize...")
+        logger.info(f"Starting cartoonize...")
 
-    outputImage = StyleTransfer(I, image_size=1024, options=options)
+        outputImage = StyleTransfer(I, image_size=1024, options=options)
 
-    if is_save:
-        """
-        This is used to check whether image processed or not!
-        output_path = f"{CARTOONIZE_RESOURCE}/output/{params.request_id}_{params.style}_{params.style_id}.jpg"
+        if is_save:
+            """
+            This is used to check whether image processed or not!
+            output_path = f"{CARTOONIZE_RESOURCE}/output/{params.request_id}_{params.style}_{params.style_id}.jpg"
 
-        """
-        # image_path = f"{CURR_PATH}/output/out_{current_time}.jpg"
-        image_path = options["output_path"]
-        save_image(outputImage, image_path)
-        logger.info(f"Saved at {image_path}")
+            """
+            # image_path = f"{CURR_PATH}/output/out_{current_time}.jpg"
+            image_path = options["output_path"]
+            save_image(outputImage, image_path)
+            logger.info(f"Saved at {image_path}")
 
-    logger.info(f"Finished!")
+            if options["cropped_path"] is not None:
+                I_.convert("RGB")
+                I_.save(options["cropped_path"])
 
-    return outputImage
+        logger.info(f"Finished!")
+
+        return outputImage
+    except Exception as e:
+        logger.error(f"Error when cartoonize: {e}")
+        return None
 
 
 if __name__ == "__main__":

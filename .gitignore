@@ -2,3 +2,4 @@ checkpoint/*
 __pycache__
 *.py[cod]
 output/out_*
+*.zip
